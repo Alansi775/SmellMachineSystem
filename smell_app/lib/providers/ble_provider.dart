@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/utils/logger.dart';
 
 class BleScanResult {
@@ -17,6 +20,8 @@ class BleScanResult {
 }
 
 class BleProvider extends ChangeNotifier {
+  static const String targetDeviceName = 'Smell Device';
+
   // BLE connection state
   bool _isConnected = false;
   String? _connectedDeviceId;
@@ -24,6 +29,9 @@ class BleProvider extends ChangeNotifier {
   List<BleScanResult> _devices = [];
   bool _isScanning = false;
   bool _webUnsupportedWarningShown = false;
+  StreamSubscription<List<ScanResult>>? _scanResultsSubscription;
+  final Set<String> _loggedDeviceIds = <String>{};
+  DateTime? _lastScanRequestAt;
 
   // BLE channel UUIDs (from ESP32 config)
   static const String serviceUuid = '12345678-1234-1234-1234-123456789abc';
@@ -41,8 +49,38 @@ class BleProvider extends ChangeNotifier {
   bool get isScanning => _isScanning;
   bool get isBleSupported => !kIsWeb;
 
+  Future<bool> _ensureBlePermissions() async {
+    if (kIsWeb) return false;
+
+    final statuses = await <Permission>[
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.locationWhenInUse,
+    ].request();
+
+    final scanOk = statuses[Permission.bluetoothScan]?.isGranted ?? false;
+    final connectOk = statuses[Permission.bluetoothConnect]?.isGranted ?? false;
+    final locationOk = statuses[Permission.locationWhenInUse]?.isGranted ?? false;
+
+    if (!scanOk || !connectOk || !locationOk) {
+      Logger.warning(
+        'BLE permissions missing. scan=$scanOk connect=$connectOk location=$locationOk',
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   /// Starts scanning for BLE devices.
   Future<void> startScan() async {
+    final now = DateTime.now();
+    if (_lastScanRequestAt != null &&
+        now.difference(_lastScanRequestAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    _lastScanRequestAt = now;
+
     if (_isScanning) {
       return;
     }
@@ -50,6 +88,7 @@ class BleProvider extends ChangeNotifier {
     try {
       _isScanning = true;
       _devices.clear();
+      _loggedDeviceIds.clear();
       notifyListeners();
 
       // Check if BLE is available (not on web)
@@ -63,32 +102,57 @@ class BleProvider extends ChangeNotifier {
         return;
       }
 
+      final hasPermissions = await _ensureBlePermissions();
+      if (!hasPermissions) {
+        _isScanning = false;
+        notifyListeners();
+        return;
+      }
+
       Logger.info('Starting BLE scan...');
+
+      await _scanResultsSubscription?.cancel();
 
       // Start scanning
       await FlutterBluePlus.startScan(
-        timeout: const Duration(seconds: 15),
+        timeout: const Duration(seconds: 10),
+        withServices: [Guid(serviceUuid)],
       );
 
-      // Listen to scan results
-      FlutterBluePlus.scanResults.listen((results) {
-        _devices.clear();
-        for (ScanResult r in results) {
-          final name = r.device.name.isNotEmpty ? r.device.name : 'Unknown';
-          Logger.info('Found device: $name (${r.device.remoteId})');
-          _devices.add(
-            BleScanResult(
-              id: r.device.remoteId.toString(),
-              name: name,
-              device: r.device,
-            ),
+      // Listen to filtered scan results (already filtered by service UUID).
+      _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
+        final Map<String, BleScanResult> filtered = <String, BleScanResult>{};
+
+        for (final ScanResult r in results) {
+          final String id = r.device.remoteId.toString();
+          final String advName = r.advertisementData.advName.trim();
+          final String platformName = r.device.platformName.trim();
+          final String rawDisplayName = advName.isNotEmpty
+              ? advName
+              : (platformName.isNotEmpty ? platformName : 'Unknown');
+          final String displayName = rawDisplayName == 'Unknown'
+              ? targetDeviceName
+              : rawDisplayName;
+
+          if (_loggedDeviceIds.add(id)) {
+            Logger.info('Found target device: $displayName ($id)');
+          }
+
+          filtered[id] = BleScanResult(
+            id: id,
+            name: displayName,
+            device: r.device,
           );
         }
+
+        _devices
+          ..clear()
+          ..addAll(filtered.values);
         notifyListeners();
       });
 
-      // Wait a bit for results
-      await Future.delayed(const Duration(seconds: 2));
+      // Keep scanning state while scan session is active.
+      await Future.delayed(const Duration(seconds: 10));
       _isScanning = false;
       notifyListeners();
     } catch (e) {
@@ -103,6 +167,8 @@ class BleProvider extends ChangeNotifier {
     try {
       _isScanning = false;
       await FlutterBluePlus.stopScan();
+      await _scanResultsSubscription?.cancel();
+      _scanResultsSubscription = null;
       notifyListeners();
       Logger.info('BLE scan stopped');
     } catch (e) {
@@ -222,6 +288,9 @@ class BleProvider extends ChangeNotifier {
   /// Disconnects from the current device.
   Future<void> disconnect() async {
     try {
+      await _scanResultsSubscription?.cancel();
+      _scanResultsSubscription = null;
+
       if (_connectedDevice != null) {
         await _connectedDevice!.disconnect();
         Logger.info('Disconnected from device');
