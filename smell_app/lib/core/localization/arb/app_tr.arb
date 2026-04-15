@@ -1,0 +1,22 @@
+{
+  "appTitle": "Koku Cihazı",
+  "connectDevice": "Cihaza Bağlan",
+  "scanning": "Taranıyor...",
+  "noDevicesFound": "Cihaz bulunamadı",
+  "smells": "Kokular",
+  "addSmell": "Koku Ekle",
+  "smellName": "Koku Adı",
+  "schedules": "Planlar",
+  "addSchedule": "Plan Ekle",
+  "day": "Gün",
+  "startTime": "Başlangıç Saati",
+  "endTime": "Bitiş Saati",
+  "selectSmell": "Koku Seç",
+  "settings": "Ayarlar",
+  "language": "Dil",
+  "wipeAllData": "Tüm Verileri Sil",
+  "confirm": "Onayla",
+  "cancel": "İptal",
+  "save": "Kaydet",
+  "delete": "Sil"
+}

@@ -1,0 +1,22 @@
+{
+  "appTitle": "Smell Device",
+  "connectDevice": "Connect to Device",
+  "scanning": "Scanning...",
+  "noDevicesFound": "No devices found",
+  "smells": "Smells",
+  "addSmell": "Add Smell",
+  "smellName": "Smell Name",
+  "schedules": "Schedules",
+  "addSchedule": "Add Schedule",
+  "day": "Day",
+  "startTime": "Start Time",
+  "endTime": "End Time",
+  "selectSmell": "Select Smell",
+  "settings": "Settings",
+  "language": "Language",
+  "wipeAllData": "Wipe All Data",
+  "confirm": "Confirm",
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete"
+}
