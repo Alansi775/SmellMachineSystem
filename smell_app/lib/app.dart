@@ -26,7 +26,7 @@ class SmellDeviceApp extends StatelessWidget {
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) {
           return MaterialApp(
-            title: 'Smell Device',
+            title: 'Koku Cihazi',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: ThemeMode.system,

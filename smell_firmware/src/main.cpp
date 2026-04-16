@@ -31,6 +31,20 @@ struct NextSmellInfo {
 
 static std::string activeConfigJson;
 
+static std::string getCurrentConfigJson() {
+  if (!activeConfigJson.empty()) {
+    return activeConfigJson;
+  }
+
+  std::string savedConfig = storageManager.loadConfig();
+  if (!savedConfig.empty()) {
+    activeConfigJson = savedConfig;
+    return savedConfig;
+  }
+
+  return "{\"smells\":[],\"schedules\":[]}";
+}
+
 static uint16_t timeToMinutes(const std::string& timeStr) {
   if (timeStr.length() < 5) return 0;
   int hour = atoi(timeStr.substr(0, 2).c_str());
@@ -142,6 +156,23 @@ void onConfigReceived(const std::string& jsonConfig) {
   Serial.println(jsonConfig.c_str());
   displayManager.showDataReceived(jsonConfig);
 
+  if (jsonConfig.find("get_config") != std::string::npos) {
+    std::string responseJson = getCurrentConfigJson();
+    DynamicJsonDocument response(768);
+    DeserializationError error = deserializeJson(response, responseJson.c_str());
+    if (!error) {
+      response["type"] = "device_config";
+      std::string out;
+      serializeJson(response, out);
+      bleManager.sendConfig(out);
+      Serial.print("[Main] Sent device config to app: ");
+      Serial.println(out.c_str());
+    } else {
+      Serial.println("[Main] ERROR: Failed to serialize device config response");
+    }
+    return;
+  }
+
   // Check for time sync (unixTime key)
   if (jsonConfig.find("unixTime") != std::string::npos) {
     // Parse unixTime from JSON (simple parsing for {"unixTime":1234567890})
@@ -230,7 +261,11 @@ void setup() {
   Serial.println("[Setup] 4. Initializing Scheduler...");
   scheduler.setup();
 
-  Serial.println("[Setup] 4.5 Initializing Display...");
+  Serial.println("[Setup] 4.5 Initializing BLE...");
+  bleManager.setup();
+  bleManager.setOnConfigReceived(onConfigReceived);
+
+  Serial.println("[Setup] 5. Initializing Display...");
   displayManager.setup();
 
   // Load configuration from storage
@@ -243,10 +278,6 @@ void setup() {
   } else {
     Serial.println("[Setup] No saved configuration found");
   }
-
-  Serial.println("[Setup] 5. Initializing BLE...");
-  bleManager.setup();
-  bleManager.setOnConfigReceived(onConfigReceived);
 
   Serial.println("\n========================================");
   Serial.println("SmellDevice Ready - Waiting for Connection");

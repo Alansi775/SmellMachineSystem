@@ -5,12 +5,14 @@ class ResponsiveScaffold extends StatelessWidget {
   final Widget body;
   final Color? backgroundColor;
   final bool centerTitle;
+  final bool showSettingsAction;
 
   const ResponsiveScaffold({
     required this.title,
     required this.body,
     this.backgroundColor,
     this.centerTitle = true,
+    this.showSettingsAction = true,
     Key? key,
   }) : super(key: key);
 
@@ -31,6 +33,15 @@ class ResponsiveScaffold extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
+        actions: showSettingsAction
+            ? [
+                IconButton(
+                  tooltip: 'Kontrol Merkezi',
+                  icon: const Icon(Icons.tune_rounded),
+                  onPressed: () => Navigator.of(context).pushNamed('/settings'),
+                ),
+              ]
+            : null,
       ),
       body: Center(
         child: ConstrainedBox(

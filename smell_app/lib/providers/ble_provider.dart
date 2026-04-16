@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../data/models/device_config.dart';
 import '../../core/utils/logger.dart';
 
 class BleScanResult {
@@ -27,7 +28,7 @@ class BleProvider extends ChangeNotifier {
   bool _isConnected = false;
   String? _connectedDeviceId;
   String? _connectedDeviceName;
-  List<BleScanResult> _devices = [];
+  final List<BleScanResult> _devices = [];
   bool _isScanning = false;
   bool _webUnsupportedWarningShown = false;
   StreamSubscription<List<ScanResult>>? _scanResultsSubscription;
@@ -41,10 +42,12 @@ class BleProvider extends ChangeNotifier {
 
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _configChar;
-  BluetoothCharacteristic? _responseChar;
+  static const int _bleChunkSize = 180;
   String? _lastDeviceMessage;
   String? _lastNextSmellName;
   bool _lastApplySuccess = false;
+  DeviceConfig? _lastDeviceConfig;
+  Completer<DeviceConfig?>? _pendingConfigCompleter;
 
   bool get isConnected => _isConnected;
   String? get connectedDeviceId => _connectedDeviceId;
@@ -55,6 +58,7 @@ class BleProvider extends ChangeNotifier {
   String? get lastDeviceMessage => _lastDeviceMessage;
   String? get lastNextSmellName => _lastNextSmellName;
   bool get lastApplySuccess => _lastApplySuccess;
+  DeviceConfig? get lastDeviceConfig => _lastDeviceConfig;
 
   Future<bool> _ensureBlePermissions() async {
     if (kIsWeb) return false;
@@ -120,13 +124,14 @@ class BleProvider extends ChangeNotifier {
 
       await _scanResultsSubscription?.cancel();
 
-      // Start scanning
+      // Start scanning without strict UUID filter. Some peripherals expose
+      // service UUID in scan response, which can be missed by filtered scans.
       await FlutterBluePlus.startScan(
         timeout: const Duration(seconds: 10),
-        withServices: [Guid(serviceUuid)],
       );
 
-      // Listen to filtered scan results (already filtered by service UUID).
+      // Listen to results and keep only devices that match target name or
+      // contain the expected service UUID in advertised service data.
       _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
         final Map<String, BleScanResult> filtered = <String, BleScanResult>{};
 
@@ -140,6 +145,16 @@ class BleProvider extends ChangeNotifier {
           final String displayName = rawDisplayName == 'Unknown'
               ? targetDeviceName
               : rawDisplayName;
+
+          final bool nameMatches = rawDisplayName.toLowerCase() ==
+              targetDeviceName.toLowerCase();
+            final bool serviceMatches = r.advertisementData.serviceUuids
+              .map((uuid) => uuid.toString().toLowerCase())
+              .contains(serviceUuid.toLowerCase());
+
+          if (!nameMatches && !serviceMatches) {
+            continue;
+          }
 
           if (_loggedDeviceIds.add(id)) {
             Logger.info('Found target device: $displayName ($id)');
@@ -193,20 +208,18 @@ class BleProvider extends ChangeNotifier {
 
       // Connect to the device
       await device.connect(timeout: const Duration(seconds: 10));
-      Logger.info('Connected to ${device.name}');
+      Logger.info('Connected to ${device.platformName}');
 
       // Discover services
       List<BluetoothService> services = await device.discoverServices();
       Logger.info('Discovered ${services.length} services');
 
       // Find our service
-      BluetoothService? targetService;
       BluetoothCharacteristic? configChar;
       BluetoothCharacteristic? responseChar;
 
       for (BluetoothService service in services) {
         if (service.uuid.toString().toLowerCase() == serviceUuid.toLowerCase()) {
-          targetService = service;
           Logger.info('Found target service');
 
           // Find characteristics
@@ -233,16 +246,18 @@ class BleProvider extends ChangeNotifier {
 
       if (configChar != null && responseChar != null) {
         _configChar = configChar;
-        _responseChar = responseChar;
         _isConnected = true;
         _connectedDeviceId = deviceId;
-        _connectedDeviceName = device.name;
+        _connectedDeviceName = device.platformName;
         notifyListeners();
 
         Logger.info('Successfully connected and characteristics found');
         
         // Send time sync immediately after connection
         await _syncTimeWithDevice();
+
+        // Pull the current device configuration so the app mirrors the ESP32.
+        await requestDeviceConfig();
         
         return true;
       } else {
@@ -271,6 +286,11 @@ class BleProvider extends ChangeNotifier {
         _lastDeviceMessage = decoded['message']?.toString();
         _lastNextSmellName = decoded['nextSmellName']?.toString();
         notifyListeners();
+      } else if (type == 'device_config') {
+        _lastDeviceConfig = DeviceConfig.fromJson(decoded);
+        _pendingConfigCompleter?.complete(_lastDeviceConfig);
+        _pendingConfigCompleter = null;
+        notifyListeners();
       } else if (type == 'time_sync') {
         _lastDeviceMessage = 'Time synchronized';
         notifyListeners();
@@ -298,6 +318,41 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  /// Requests the current full configuration from the ESP32.
+  Future<DeviceConfig?> requestDeviceConfig() async {
+    try {
+      if (!_isConnected || _configChar == null) {
+        Logger.error('Cannot request config while disconnected');
+        return null;
+      }
+
+      _pendingConfigCompleter = Completer<DeviceConfig?>();
+      const requestJson = '{"type":"get_config"}';
+      Logger.info('Requesting config from ESP32');
+      await _configChar!.write(requestJson.codeUnits, withoutResponse: false);
+
+      final config = await _pendingConfigCompleter!.future.timeout(
+        const Duration(seconds: 4),
+        onTimeout: () {
+          Logger.warning('Timed out waiting for device config');
+          return null;
+        },
+      );
+
+      _pendingConfigCompleter = null;
+      return config;
+    } catch (e) {
+      Logger.error('Request config error: $e');
+      _pendingConfigCompleter = null;
+      return null;
+    }
+  }
+
+  /// Sends a full configuration object to the device.
+  Future<bool> syncDeviceConfig(DeviceConfig config) async {
+    return sendConfig(jsonEncode(config.toJson()));
+  }
+
   /// Sends JSON configuration to the device via BLE.
   Future<bool> sendConfig(String jsonConfig) async {
     try {
@@ -307,7 +362,28 @@ class BleProvider extends ChangeNotifier {
       }
 
       Logger.info('Sending config to ESP32: $jsonConfig');
-      await _configChar!.write(jsonConfig.codeUnits, withoutResponse: false);
+
+      final data = utf8.encode(jsonConfig);
+      if (data.length <= 220) {
+        await _configChar!.write(data, withoutResponse: false);
+        Logger.info('Config sent successfully');
+        return true;
+      }
+
+      Logger.info('Config is large (${data.length} bytes), sending in BLE chunks');
+      await _configChar!.write(
+        utf8.encode('CFG_BEGIN:${data.length}'),
+        withoutResponse: false,
+      );
+
+      for (int i = 0; i < data.length; i += _bleChunkSize) {
+        final end = (i + _bleChunkSize < data.length) ? i + _bleChunkSize : data.length;
+        final chunk = data.sublist(i, end);
+        final packet = <int>[]..addAll(utf8.encode('CFG_CHUNK:'))..addAll(chunk);
+        await _configChar!.write(packet, withoutResponse: false);
+      }
+
+      await _configChar!.write(utf8.encode('CFG_END'), withoutResponse: false);
       Logger.info('Config sent successfully');
       return true;
     } catch (e) {
@@ -331,10 +407,11 @@ class BleProvider extends ChangeNotifier {
       _connectedDeviceName = null;
       _connectedDevice = null;
       _configChar = null;
-      _responseChar = null;
       _lastDeviceMessage = null;
       _lastNextSmellName = null;
       _lastApplySuccess = false;
+      _lastDeviceConfig = null;
+      _pendingConfigCompleter = null;
       notifyListeners();
     } catch (e) {
       Logger.error('Disconnect error: $e');

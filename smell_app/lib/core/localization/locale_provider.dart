@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 class LocaleProvider extends ChangeNotifier {
   static const String _preferenceKey = 'preferred_locale';
-  static const String _defaultLocaleCode = 'en';
+  static const String _defaultLocaleCode = 'tr';
 
   // TODO: Initialize from SharedPreferences
   String _localeCode = _defaultLocaleCode;

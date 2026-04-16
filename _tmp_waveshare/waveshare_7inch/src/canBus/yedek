@@ -1,0 +1,265 @@
+// #include "driver/twai.h"
+// #include <ESP_IOExpander_Library.h>
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/task.h"
+// #include "freertos/queue.h"
+// #include <Arduino.h>
+// #include "esp_err.h"
+// #include "driver/gpio.h"
+// #include "driver/twai.h"
+// #include "usrCan.h"
+
+// uint32_t g_id = 0x407;
+// uint8_t g_data[8];
+// uint8_t g_dataLen = 8;
+// uint8_t g_counter = 255;
+
+// void initCAN(void);
+// esp_err_t sendCANMessage(uint32_t id, const uint8_t *data, size_t dataLen);
+// esp_err_t receiveCANMessage(uint32_t *id, uint8_t *data, size_t *dataLen);
+// void startCanCommunication(void);
+
+// static TaskHandle_t s_canReceiveTaskHandle;
+// static TaskHandle_t s_canSendTaskHandle;
+
+// static void canReceiveTask(void *arg);
+// static void canSendTask(void *arg);
+
+// void startCanCommunication(void)
+// {
+//   xTaskCreate(canReceiveTask, "CAN Receive", 4096, NULL, 5, &s_canReceiveTaskHandle);
+//   xTaskCreate(canSendTask, "CAN Send", 4096, NULL, 5, &s_canSendTaskHandle);
+// }
+
+// void initCAN(void)
+// {
+//   twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
+//         (gpio_num_t)CAN_TX_PIN, 
+//         (gpio_num_t)CAN_RX_PIN, 
+//         TWAI_MODE_NORMAL
+//     );
+//   twai_timing_config_t t_config = CAN_BAUDRATE;
+//   twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+
+//   if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK)
+//   {
+//     LV_LOG_USER("CAN driver install failed");
+//   }
+
+//   if (twai_start() != ESP_OK)
+//   {
+//     LV_LOG_USER("CAN communication start failed");
+//   }
+//   LV_LOG_USER("Buradasın!");
+// }
+
+
+// esp_err_t sendCANMessage(uint32_t id, const uint8_t *data, size_t dataLen)
+// {
+//   twai_message_t message;
+//   message.identifier = id;
+//   message.data_length_code = dataLen;
+
+//   for (size_t i = 0; i < dataLen; i++)
+//   {
+//     message.data[i] = data[i];
+//   }
+
+//   return twai_transmit(&message, pdMS_TO_TICKS(2000));
+// }
+
+// esp_err_t receiveCANMessage(uint32_t *id, uint8_t *data, size_t *dataLen)
+// {
+//   twai_message_t message;
+
+//   if (twai_receive(&message, pdMS_TO_TICKS(100)) == ESP_OK)
+//   {
+//     *id = message.identifier;
+//     *dataLen = message.data_length_code;
+
+//     for (size_t i = 0; i < *dataLen; i++)
+//     {
+//       data[i] = message.data[i];
+//     }
+//     return ESP_OK;
+//   }
+//   return ESP_FAIL;
+// }
+
+// static void canReceiveTask(void *arg)
+// {
+//   LV_LOG_USER("CAN Receive Task started");
+//   uint32_t id;
+//   uint8_t data[8];
+//   size_t dataLen;
+
+//   while (1)
+//   {
+//     if (receiveCANMessage(&id, data, &dataLen) == ESP_OK)
+//     {
+//       LV_LOG_USER("Received from ID: ");
+//       LV_LOG_USER("%d",id );
+//       LV_LOG_USER(" Data: ");
+//       for (size_t i = 0; i < dataLen; i++)
+//       {
+//         LV_LOG_USER("%d",data[i]);
+//         LV_LOG_USER(" ");
+//       }
+//       LV_LOG_USER(" ");
+//     }
+//     delay(10);
+//   }
+// }
+
+// static void canSendTask(void *arg)
+// {
+//   LV_LOG_USER("CAN Send Task started");
+
+//   while (1)
+//   {
+//     g_data[0] = g_data[1] = g_data[2] = g_data[3] = g_data[4] = g_data[5] = g_data[6] = g_data[7] = g_counter--;
+
+//     if (g_counter == 0)
+//       g_counter = 255;
+
+//     if (sendCANMessage(g_id, g_data, g_dataLen) != ESP_OK)
+//       LV_LOG_USER("CAN send Error in CAN Send Task");
+
+//     delay(1000);
+//   }
+// }
+
+
+/////////////////////////////////////////////////////////////////////////////
+#include "driver/twai.h"
+#include <Arduino.h>
+#include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "usrCan.h"
+
+uint32_t g_id = 0x407;
+
+void initCAN(void);
+void sendButtonOverCAN(const Button* button);
+bool receiveButtonOverCAN(Button* button);
+
+static TaskHandle_t s_canReceiveTaskHandle;
+static TaskHandle_t s_canSendTaskHandle;
+
+static void canReceiveTask(void *arg);
+static void canSendTask(void *arg);
+
+void startCanCommunication(void)
+{
+    xTaskCreate(canReceiveTask, "CAN Receive", 4096, NULL, 5, &s_canReceiveTaskHandle);
+    xTaskCreate(canSendTask, "CAN Send", 4096, NULL, 5, &s_canSendTaskHandle);
+}
+
+void initCAN(void)
+{
+    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
+        (gpio_num_t)CAN_TX_PIN, 
+        (gpio_num_t)CAN_RX_PIN, 
+        TWAI_MODE_NORMAL
+    );
+    twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
+    twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+
+    if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK) {
+        Serial.println("CAN driver install failed");
+    }
+
+    if (twai_start() != ESP_OK) {
+        Serial.println("CAN communication start failed");
+    }
+    Serial.println("CAN initialized");
+}
+
+void serializeButton(const Button* button, uint8_t* buffer) {
+    memcpy(buffer, button, sizeof(Button));
+}
+
+void deserializeButton(const uint8_t* buffer, Button* button) {
+    memcpy(button, buffer, sizeof(Button));
+}
+
+void sendButtonOverCAN(const Button* button) {
+    uint8_t buffer[sizeof(Button)];
+    serializeButton(button, buffer);
+    size_t totalBytes = sizeof(Button);
+    size_t bytesSent = 0;
+
+    while (bytesSent < totalBytes) {
+        twai_message_t message;
+        message.identifier = g_id;
+        message.data_length_code = (totalBytes - bytesSent > 8) ? 8 : totalBytes - bytesSent;
+        memcpy(message.data, buffer + bytesSent, message.data_length_code);
+
+        if (twai_transmit(&message, pdMS_TO_TICKS(1000)) != ESP_OK) {
+            Serial.println("CAN send error");
+        }
+
+        bytesSent += message.data_length_code;
+        delay(10); // Kısa bir bekleme
+    }
+}
+
+bool receiveButtonOverCAN(Button* button) {
+    uint8_t buffer[sizeof(Button)];
+    size_t bytesReceived = 0;
+
+    while (bytesReceived < sizeof(Button)) {
+        twai_message_t message;
+        if (twai_receive(&message, pdMS_TO_TICKS(100)) == ESP_OK) {
+            memcpy(buffer + bytesReceived, message.data, message.data_length_code);
+            bytesReceived += message.data_length_code;
+        } else {
+            Serial.println("CAN receive error or timeout");
+            return false;
+        }
+    }
+
+    deserializeButton(buffer, button);
+    return true;
+}
+
+static void canSendTask(void *arg) {
+    Serial.println("CAN Send Task started");
+    
+    // Initialize the array of 5 buttons
+    Button buttonsToSend[6] = {
+        {1, "HARRY POTTER", true, "isik"},
+        {2, "Hermione Granger", false, "fan"},
+        {3, "Ron Weasley", false, "isik"},
+        {4, "Albus Dumbledore", false, "anahtar"},
+        {5, "Severus Snape", true, "fan"},
+        {6, "Silvus Black", true, "anahtar"}
+      };
+
+    // Loop to send all buttons
+    while (1) {
+        for (int i = 0; i < 6; i++) {
+            // Send each button over CAN
+            sendButtonOverCAN(&buttonsToSend[i]);
+            delay(1000); // 1 second delay between sending each button
+        }
+    }
+}
+
+
+static void canReceiveTask(void *arg) {
+    Serial.println("CAN Receive Task started");
+    Button receivedButton;
+
+    while (1) {
+        if (receiveButtonOverCAN(&receivedButton)) {
+            LV_LOG_USER("Received Button ID: %d\n", receivedButton.id);
+            LV_LOG_USER("Name: %s\n", receivedButton.name);
+            LV_LOG_USER("Durum: %s\n", receivedButton.durum ? "true" : "false");
+            LV_LOG_USER("Func: %s\n", receivedButton.func);
+        }
+        delay(10);
+    }
+}

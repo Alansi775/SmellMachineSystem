@@ -11,6 +11,11 @@ class SchedulesProvider extends ChangeNotifier {
   bool get isEmpty => _schedules.isEmpty;
   int get count => _schedules.length;
 
+  void replaceAll(List<Schedule> schedules) {
+    _schedules = List<Schedule>.from(schedules);
+    notifyListeners();
+  }
+
   /// Adds a new schedule to the device.
   Future<void> addSchedule({
     required String smellId,
@@ -87,6 +92,15 @@ class SchedulesProvider extends ChangeNotifier {
     } catch (e) {
       Logger.error('Error deleting schedule: $e');
     }
+  }
+
+  void removeSchedulesForSmell(String smellId) {
+    _schedules.removeWhere((schedule) => schedule.smellId == smellId);
+    notifyListeners();
+  }
+
+  List<Schedule> schedulesForSmell(String smellId) {
+    return _schedules.where((schedule) => schedule.smellId == smellId).toList();
   }
 
   /// Gets schedules for a specific day.

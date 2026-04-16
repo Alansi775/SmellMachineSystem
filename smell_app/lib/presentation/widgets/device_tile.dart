@@ -69,8 +69,11 @@ class _DeviceTileState extends State<DeviceTile>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: widget.isSelected ? const Color(0xFF111827) : Colors.white,
               borderRadius: BorderRadius.circular(20.0),
+              border: Border.all(
+                color: widget.isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.04),
@@ -93,7 +96,7 @@ class _DeviceTileState extends State<DeviceTile>
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w500,
                       fontSize: 15.0,
-                      color: const Color(0xFF0A0A0A),
+                      color: widget.isSelected ? Colors.white : const Color(0xFF0A0A0A),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -102,7 +105,7 @@ class _DeviceTileState extends State<DeviceTile>
                 const SizedBox(width: 12.0),
                 Icon(
                   Icons.chevron_right,
-                  color: const Color(0xFFA1A1AA),
+                  color: widget.isSelected ? Colors.white70 : const Color(0xFFA1A1AA),
                   size: 20.0,
                 ),
               ],

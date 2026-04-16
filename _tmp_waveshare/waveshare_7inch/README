@@ -1,0 +1,12 @@
+
+ WaveShare 7" LCD Screen
+
+ Ekran modül dailinde 4 ekran var.
+
+ 1.Screen -> Battery Arcs
+ 2.Screen -> Water Arcs
+ 3.Screen -> Fuel Arcs
+ 4.Screen -> Buttons
+
+Arc'lar da ilgili birimlerim seviyeleri var. her bir tank için ARC ve tüm tankların oertlamasını gösteren ARC var
+Buttonlar kullanıcı girdisine bağıl olarak eeprom'a kaydedilmekte ve buton ekle/çıkar işlemi yapılmaktadır.

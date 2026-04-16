@@ -1,39 +1,19 @@
 /// Display manager implementation.
 ///
-/// Uses SSD1306 OLED over I2C when present, with serial fallback.
+/// In this project mode, we intentionally run Serial-only logs and do not
+/// initialize any physical display hardware.
 
 #include "display_manager.h"
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include "pins.h"
-
-namespace {
-constexpr uint8_t kOledWidth = 128;
-constexpr uint8_t kOledHeight = 64;
-constexpr int8_t kOledResetPin = -1;
-constexpr uint8_t kOledAddress = 0x3C;
-Adafruit_SSD1306 gDisplay(kOledWidth, kOledHeight, &Wire, kOledResetPin);
-}  // namespace
 
 void DisplayManager::setup() {
   initialized = true;
+  displayAvailable = false;
   statusLine = "Booting";
   dataLine = "Waiting for app";
 
-  Wire.begin(DISPLAY_SDA_PIN, DISPLAY_SCL_PIN);
-
-  displayAvailable = gDisplay.begin(SSD1306_SWITCHCAPVCC, kOledAddress);
-  if (displayAvailable) {
-    gDisplay.clearDisplay();
-    gDisplay.setTextWrap(false);
-    gDisplay.setTextColor(SSD1306_WHITE);
-  }
-
   showWelcome();
 
-  Serial.println("[Display] Initialized");
-  Serial.println(displayAvailable ? "[Display] OLED online" : "[Display] OLED not detected, serial fallback");
+  Serial.println("[Display] Serial-only mode enabled");
 }
 
 void DisplayManager::showWelcome() {
@@ -148,75 +128,7 @@ void DisplayManager::update() {
 }
 
 void DisplayManager::render() {
-  if (!displayAvailable) {
-    return;
-  }
-
-  gDisplay.clearDisplay();
-
-  if (millis() < splashUntilMs) {
-    gDisplay.setTextSize(1);
-    gDisplay.setCursor(0, 2);
-    gDisplay.print("SMELL DEVICE");
-    gDisplay.drawLine(0, 12, 127, 12, SSD1306_WHITE);
-    gDisplay.setTextSize(2);
-    gDisplay.setCursor(0, 20);
-    gDisplay.print("Welcome");
-    gDisplay.setTextSize(1);
-    gDisplay.setCursor(0, 50);
-    gDisplay.print("Hotel-grade scent control");
-    gDisplay.display();
-    return;
-  }
-
-  gDisplay.setTextSize(1);
-  gDisplay.setCursor(0, 0);
-  gDisplay.print("Smell Device");
-  gDisplay.setCursor(90, 0);
-  gDisplay.print(bleConnected ? "BLE ON" : "BLE OFF");
-  gDisplay.drawLine(0, 10, 127, 10, SSD1306_WHITE);
-
-  gDisplay.setCursor(0, 14);
-  gDisplay.print(trimForLine(statusLine, 21).c_str());
-
-  gDisplay.setCursor(0, 25);
-  if (hasNextSmell) {
-    gDisplay.print("Next: ");
-    gDisplay.print(trimForLine(nextSmellName, 12).c_str());
-  } else {
-    gDisplay.print("Next: none");
-  }
-
-  gDisplay.setCursor(0, 36);
-  if (hasNextSmell) {
-    gDisplay.print(dayName(nextSmellDay));
-    gDisplay.print(" ");
-    gDisplay.print(trimForLine(nextSmellTime, 5).c_str());
-  } else {
-    gDisplay.print(trimForLine(dataLine, 21).c_str());
-  }
-
-  gDisplay.setCursor(0, 47);
-  if (hasNextSmell && minutesUntilNext >= 0) {
-    int h = minutesUntilNext / 60;
-    int m = minutesUntilNext % 60;
-    gDisplay.print("Starts in ");
-    gDisplay.print(h);
-    gDisplay.print("h ");
-    gDisplay.print(m);
-    gDisplay.print("m");
-  } else if (hasNextSmell) {
-    gDisplay.print("Starts in --");
-  } else {
-    gDisplay.print("Waiting schedule...");
-  }
-
-  const bool showTransient = !transientLine.empty() && millis() < transientUntilMs;
-  gDisplay.drawLine(0, 58, 127, 58, SSD1306_WHITE);
-  gDisplay.setCursor(0, 59);
-  gDisplay.print(trimForLine(showTransient ? transientLine : dataLine, 21).c_str());
-
-  gDisplay.display();
+  // Serial-only mode: no physical display rendering.
 }
 
 std::string DisplayManager::trimForLine(const std::string& input, size_t maxLen) const {

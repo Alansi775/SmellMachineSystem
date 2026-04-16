@@ -13,6 +13,8 @@ static NimBLECharacteristic* pConfigCharacteristic = nullptr;
 static NimBLECharacteristic* pResponseCharacteristic = nullptr;
 static void (*configCallback)(const std::string& config) = nullptr;
 static bool clientConnected = false;
+static std::string incomingConfigBuffer;
+static bool receivingChunkedConfig = false;
 
 class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* pServer) {
@@ -23,18 +25,48 @@ class ServerCallbacks : public NimBLEServerCallbacks {
   void onDisconnect(NimBLEServer* pServer) {
     clientConnected = false;
     Serial.println("[BLE] Client disconnected");
+    NimBLEDevice::startAdvertising();
+    Serial.println("[BLE] Advertising restarted");
   }
 };
 
 class ConfigCharCallbacks : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* pCharacteristic) {
     std::string jsonConfig = pCharacteristic->getValue();
-    if (!jsonConfig.empty()) {
-      Serial.print("[BLE] Received config: ");
+    if (jsonConfig.empty()) {
+      return;
+    }
+
+    if (jsonConfig.rfind("CFG_BEGIN:", 0) == 0) {
+      incomingConfigBuffer.clear();
+      receivingChunkedConfig = true;
+      Serial.print("[BLE] Chunked config begin: ");
       Serial.println(jsonConfig.c_str());
-      if (configCallback) {
-        configCallback(jsonConfig);
+      return;
+    }
+
+    if (jsonConfig.rfind("CFG_CHUNK:", 0) == 0) {
+      if (receivingChunkedConfig) {
+        incomingConfigBuffer.append(jsonConfig.substr(10));
       }
+      return;
+    }
+
+    if (jsonConfig == "CFG_END") {
+      Serial.print("[BLE] Chunked config received, bytes=");
+      Serial.println(incomingConfigBuffer.length());
+      if (configCallback && receivingChunkedConfig && !incomingConfigBuffer.empty()) {
+        configCallback(incomingConfigBuffer);
+      }
+      incomingConfigBuffer.clear();
+      receivingChunkedConfig = false;
+      return;
+    }
+
+    Serial.print("[BLE] Received config: ");
+    Serial.println(jsonConfig.c_str());
+    if (configCallback) {
+      configCallback(jsonConfig);
     }
   }
 };
@@ -44,14 +76,23 @@ void BleManager::setup() {
 
   // Initialize NimBLE device
   NimBLEDevice::init(DEVICE_NAME);
+  NimBLEDevice::setDeviceName(DEVICE_NAME);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9, ESP_BLE_PWR_TYPE_DEFAULT);
 
   // Create server
   pServer = NimBLEDevice::createServer();
+  if (!pServer) {
+    Serial.println("[BLE] ERROR: Failed to create BLE server");
+    return;
+  }
   pServer->setCallbacks(new ServerCallbacks());
 
   // Create service
   NimBLEService* pService = pServer->createService(BLE_SERVICE_UUID);
+  if (!pService) {
+    Serial.println("[BLE] ERROR: Failed to create BLE service");
+    return;
+  }
 
   // Create config characteristic (write + notify)
   pConfigCharacteristic = pService->createCharacteristic(
@@ -65,21 +106,40 @@ void BleManager::setup() {
     BLE_RESPONSE_CHAR_UUID,
     NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
   );
+  if (!pConfigCharacteristic || !pResponseCharacteristic) {
+    Serial.println("[BLE] ERROR: Failed to create BLE characteristics");
+    return;
+  }
 
   // Start service
   pService->start();
 
   // Start advertising
   NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+  if (!pAdvertising) {
+    Serial.println("[BLE] ERROR: Failed to get BLE advertising handle");
+    return;
+  }
+
   pAdvertising->addServiceUUID(BLE_SERVICE_UUID);
   pAdvertising->setScanResponse(true);
   pAdvertising->setMinPreferred(0x06);
   pAdvertising->setMaxPreferred(0x12);
-  pAdvertising->start();
+  bool advStarted = pAdvertising->start(0);
+  if (!advStarted) {
+    Serial.println("[BLE] WARN: First advertising start failed, retrying...");
+    NimBLEDevice::stopAdvertising();
+    delay(200);
+    advStarted = pAdvertising->start(0);
+  }
 
-  Serial.print("[BLE] Initialized and advertising as '");
-  Serial.print(DEVICE_NAME);
-  Serial.println("'");
+  if (advStarted) {
+    Serial.print("[BLE] Initialized and advertising as '");
+    Serial.print(DEVICE_NAME);
+    Serial.println("'");
+  } else {
+    Serial.println("[BLE] ERROR: Advertising did not start");
+  }
 }
 
 void BleManager::setOnConfigReceived(void (*callback)(const std::string& config)) {

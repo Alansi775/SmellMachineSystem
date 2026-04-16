@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/ble_provider.dart';
+import '../../../providers/smells_provider.dart';
+import '../../../providers/schedules_provider.dart';
 import '../../widgets/responsive_scaffold.dart';
 import '../../widgets/custom_loader.dart';
 import '../../widgets/section_label.dart';
@@ -31,7 +33,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
     )..repeat();
 
     if (kIsWeb) {
-      _errorMessage = 'BLE is not supported on Chrome in this app. Run on Android or iOS.';
+      _errorMessage = 'Bu uygulamada BLE web uzerinde desteklenmiyor. Android veya iOS kullanin.';
       return;
     }
 
@@ -57,18 +59,23 @@ class _ConnectionScreenState extends State<ConnectionScreen>
       final success = await bleProvider.connectToDevice(deviceId);
       if (success && mounted) {
         Logger.info('Successfully connected to device');
+        final config = bleProvider.lastDeviceConfig;
+        if (config != null) {
+          context.read<SmellsProvider>().replaceAll(config.smells);
+          context.read<SchedulesProvider>().replaceAll(config.schedules);
+        }
         // Navigate to next screen
         Navigator.of(context).pushReplacementNamed('/smells');
       } else if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to connect to device';
+          _errorMessage = 'Cihaza baglanilamadi';
           _isConnecting = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Connection error: $e';
+          _errorMessage = 'Baglanti hatasi: $e';
           _isConnecting = false;
         });
       }
@@ -87,7 +94,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
               children: [
                 // STEP label
                 const SizedBox(height: 16),
-                const SectionLabel(text: 'STEP 1 OF 3'),
+                const SectionLabel(text: 'ADIM 1 / 3'),
                 const SizedBox(height: 24),
 
                 Container(
@@ -129,7 +136,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        'Looking for your device',
+                        'Cihaziniz araniyor',
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -138,7 +145,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Power on Smell Device and keep it close',
+                        'Smell Device acik olsun ve yakinda tutun',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.white.withValues(alpha: 0.85),
                         ),
@@ -152,13 +159,29 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          bleProvider.isScanning ? 'Scanning in progress...' : 'Tap Scan Again to refresh',
+                          bleProvider.isScanning ? 'Tarama suruyor...' : 'Yenilemek icin tekrar tara',
                           style: Theme.of(context).textTheme.labelLarge?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
+                      if (_isConnecting) ...[
+                        const SizedBox(height: 14),
+                        const LinearProgressIndicator(
+                          minHeight: 6,
+                          borderRadius: BorderRadius.all(Radius.circular(999)),
+                          color: Color(0xFF10B981),
+                          backgroundColor: Colors.white24,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Eslestirme yapiliyor, lutfen bekleyin...',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.white,
+                              ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -201,7 +224,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12.0),
                           child: DeviceTile(
-                            name: device.name ?? 'Unknown',
+                            name: device.name ?? 'Bilinmeyen cihaz',
                             onTap: _isConnecting
                                 ? null
                                 : () => _handleDeviceSelect(device.id, bleProvider),
@@ -215,7 +238,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                   Column(
                     children: [
                       Text(
-                        'No devices found',
+                        'Cihaz bulunamadi',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
@@ -227,7 +250,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                 SizedBox(
                   width: double.infinity,
                   child: PrimaryButton(
-                    label: 'Scan Again',
+                    label: 'Tekrar Tara',
                     leadingIcon: const Icon(Icons.refresh),
                     isLoading: bleProvider.isScanning,
                     isEnabled: !_isConnecting && bleProvider.isBleSupported,

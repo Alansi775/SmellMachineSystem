@@ -11,6 +11,11 @@ class SmellsProvider extends ChangeNotifier {
   bool get isEmpty => _smells.isEmpty;
   int get count => _smells.length;
 
+  void replaceAll(List<Smell> smells) {
+    _smells = List<Smell>.from(smells);
+    notifyListeners();
+  }
+
   /// Adds a new smell to the device.
   Future<void> addSmell(String name, [BleProvider? bleProvider]) async {
     try {
@@ -59,6 +64,14 @@ class SmellsProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       Logger.error('Error deleting smell: $e');
+    }
+  }
+
+  Smell? findById(String id) {
+    try {
+      return _smells.firstWhere((smell) => smell.id == id);
+    } catch (_) {
+      return null;
     }
   }
 

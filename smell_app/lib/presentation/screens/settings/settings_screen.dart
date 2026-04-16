@@ -1,14 +1,6 @@
-// Settings screen for app preferences and device management.
-//
-// Provides options for:
-// - Switching language (English/Turkish)
-// - Wiping all device data
-// - Viewing app version/info
-//
-// TODO: Implement language switching
-// TODO: Implement data wipe confirmation dialog
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/localization/locale_provider.dart';
 import '../../../providers/ble_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -24,11 +16,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Consumer<BleProvider>(
       builder: (context, bleProvider, _) => Scaffold(
         appBar: AppBar(
-          title: const Text('Control Center'),
+          title: const Text('Kontrol Merkezi'),
         ),
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            // Navigation buttons for steps
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/connection'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0A0A0A),
+                    ),
+                    child: const Text(
+                      'Adim 1: Baglan',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/smells'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0A0A0A),
+                    ),
+                    child: const Text(
+                      'Adim 2: Kokular',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/schedules'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0A0A0A),
+                    ),
+                    child: const Text(
+                      'Adim 3: Takvim',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -43,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Device Status',
+                    'Cihaz Durumu',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
@@ -52,8 +88,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 10),
                   Text(
                     bleProvider.isConnected
-                        ? 'Connected to diffuser and ready for deployment.'
-                        : 'Not connected. Open Connection screen to pair device.',
+                        ? 'Difuzore bagli ve kullanim icin hazir.'
+                        : 'Bagli degil. Baglanti ekrani uzerinden eslestirin.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Colors.white.withValues(alpha: 0.85),
                     ),
@@ -68,7 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      bleProvider.isConnected ? 'BLE Connected' : 'Waiting for BLE',
+                      bleProvider.isConnected ? 'BLE Bagli' : 'BLE Bekleniyor',
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -84,16 +120,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   ListTile(
                     leading: const Icon(Icons.language_rounded),
-                    title: const Text('Language'),
-                    subtitle: const Text('English'),
+                    title: const Text('Dil'),
+                    subtitle: const Text('Turkce'),
                     trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {},
+                    onTap: () async {
+                      await showModalBottomSheet<void>(
+                        context: context,
+                        builder: (context) {
+                          return SafeArea(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  leading: const Icon(Icons.check_circle_outline),
+                                  title: const Text('Turkce'),
+                                  onTap: () async {
+                                    await context.read<LocaleProvider>().setLocale('tr');
+                                    if (context.mounted) Navigator.pop(context);
+                                  },
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.language),
+                                  title: const Text('English'),
+                                  onTap: () async {
+                                    await context.read<LocaleProvider>().setLocale('en');
+                                    if (context.mounted) Navigator.pop(context);
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.delete_outline_rounded),
-                    title: const Text('Wipe All Data'),
-                    subtitle: const Text('Remove all smells and schedules from device'),
+                    title: const Text('Tum Verileri Sil'),
+                    subtitle: const Text('Cihazdaki tum koku ve takvimleri temizle'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () {},
                   ),
@@ -108,14 +173,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Deployment Ready',
+                      'Kullanim Icin Hazir',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Use this setup for hotel lobbies, luxury suites, and premium commercial spaces.',
+                      'Bu kurulum otel lobileri, suit odalar ve premium ticari alanlar icin uygundur.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
