@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
 import '../data/models/schedule.dart';
-import '../data/models/device_config.dart';
 import '../core/utils/logger.dart';
 import 'package:uuid/uuid.dart';
 import 'ble_provider.dart';
@@ -43,9 +41,6 @@ class SchedulesProvider extends ChangeNotifier {
 
       _schedules.add(newSchedule);
       Logger.info('Added schedule: $smellId at $startTime-$endTime');
-      
-      // Send updated config to device
-      await _syncWithDevice(_schedules, bleProvider: bleProvider);
       notifyListeners();
     } catch (e) {
       Logger.error('Error adding schedule: $e');
@@ -73,9 +68,6 @@ class SchedulesProvider extends ChangeNotifier {
           endTime: endTime ?? current.endTime,
         );
         Logger.info('Updated schedule: $id');
-        
-        // Send updated config to device
-        await _syncWithDevice(_schedules, bleProvider: bleProvider);
         notifyListeners();
       }
     } catch (e) {
@@ -91,9 +83,6 @@ class SchedulesProvider extends ChangeNotifier {
     try {
       _schedules.removeWhere((s) => s.id == id);
       Logger.info('Deleted schedule: $id');
-      
-      // Send updated config to device
-      await _syncWithDevice(_schedules, bleProvider: bleProvider);
       notifyListeners();
     } catch (e) {
       Logger.error('Error deleting schedule: $e');
@@ -103,38 +92,6 @@ class SchedulesProvider extends ChangeNotifier {
   /// Gets schedules for a specific day.
   List<Schedule> getSchedulesForDay(int dayOfWeek) {
     return _schedules.where((s) => s.dayOfWeek == dayOfWeek).toList();
-  }
-
-  /// Sends updated schedules configuration to device via BLE.
-  Future<void> _syncWithDevice(
-    List<Schedule> schedules,
-    {BleProvider? bleProvider}
-  ) async {
-    if (bleProvider == null || !bleProvider.isConnected) {
-      Logger.warning('Device not connected, schedules not synced');
-      return;
-    }
-
-    try {
-      // Get current smells from app context (requires inject)
-      // For now, just send schedules
-      final config = DeviceConfig(
-        smells: [],
-        schedules: schedules,
-      );
-      final jsonStr = _jsonEncode(config.toJson());
-      
-      Logger.info('Syncing schedules to device: $jsonStr');
-      final success = await bleProvider.sendConfig(jsonStr);
-      
-      if (success) {
-        Logger.info('Schedules synced successfully');
-      } else {
-        Logger.error('Failed to sync schedules');
-      }
-    } catch (e) {
-      Logger.error('Error syncing with device: $e');
-    }
   }
 
   /// Validates time format HH:mm.
@@ -148,19 +105,6 @@ class SchedulesProvider extends ChangeNotifier {
     } catch (e) {
       return false;
     }
-  }
-
-  /// Simple JSON encoder.
-  String _jsonEncode(Map<String, dynamic> json) {
-    final smellsJson = (json['smells'] as List?)?.map((s) {
-      return '{"id":"${s['id']}","name":"${s['name']}"}';
-    }).toList() ?? [];
-
-    final schedulesJson = (json['schedules'] as List?)?.map((sch) {
-      return '{"id":"${sch['id']}","smellId":"${sch['smellId']}","dayOfWeek":${sch['dayOfWeek']},"startTime":"${sch['startTime']}","endTime":"${sch['endTime']}"}';
-    }).toList() ?? [];
-
-    return '{"smells":[${smellsJson.join(',')}],"schedules":[${schedulesJson.join(',')}]}';
   }
 
   /// Clears all schedules locally.

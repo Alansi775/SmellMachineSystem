@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../../../providers/schedules_provider.dart';
 import '../../../providers/smells_provider.dart';
 import '../../../providers/ble_provider.dart';
+import '../../../data/models/device_config.dart';
 import '../../widgets/responsive_scaffold.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/section_label.dart';
+import '../../../core/utils/logger.dart';
 
 class SchedulesScreen extends StatefulWidget {
   const SchedulesScreen({super.key});
@@ -30,6 +33,95 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     'Saturday',
     'Sunday',
   ];
+
+  int _timeToMinutes(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return 0;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    return h * 60 + m;
+  }
+
+  String? _getNextSmellName(
+    SchedulesProvider schedulesProvider,
+    SmellsProvider smellsProvider,
+  ) {
+    if (schedulesProvider.schedules.isEmpty || smellsProvider.smells.isEmpty) {
+      return null;
+    }
+
+    final now = DateTime.now();
+    final currentDay = (now.weekday + 6) % 7; // Monday=0
+    final currentMinutes = now.hour * 60 + now.minute;
+
+    int? bestDelta;
+    String? bestSmellId;
+
+    for (final schedule in schedulesProvider.schedules) {
+      final start = _timeToMinutes(schedule.startTime);
+      int delta = ((schedule.dayOfWeek - currentDay + 7) % 7) * 1440 +
+          (start - currentMinutes);
+      if (delta < 0) {
+        delta += 7 * 1440;
+      }
+
+      if (bestDelta == null || delta < bestDelta) {
+        bestDelta = delta;
+        bestSmellId = schedule.smellId;
+      }
+    }
+
+    if (bestSmellId == null) return null;
+    final smell = smellsProvider.smells.where((s) => s.id == bestSmellId).firstOrNull;
+    return smell?.name;
+  }
+
+  Future<void> _handleDone(
+    SchedulesProvider schedulesProvider,
+    SmellsProvider smellsProvider,
+    BleProvider bleProvider,
+  ) async {
+    if (!bleProvider.isConnected) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Device is not connected via Bluetooth')),
+      );
+      return;
+    }
+
+    final config = DeviceConfig(
+      smells: smellsProvider.smells,
+      schedules: schedulesProvider.schedules,
+    );
+
+    final payload = jsonEncode(config.toJson());
+    Logger.info('Applying full config from Done: $payload');
+    final ok = await bleProvider.sendConfig(payload);
+
+    if (!mounted) return;
+
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to apply config on device')),
+      );
+      return;
+    }
+
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      final nextSmell = bleProvider.lastNextSmellName ??
+        _getNextSmellName(schedulesProvider, smellsProvider);
+      final deviceMessage = bleProvider.lastDeviceMessage;
+    final message = nextSmell == null
+        ? (deviceMessage ?? 'Configuration applied successfully')
+        : 'Configuration applied. Next smell: $nextSmell';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+
+    Navigator.of(context).pushReplacementNamed('/settings');
+  }
 
   @override
   void dispose() {
@@ -300,12 +392,11 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                   width: double.infinity,
                   child: PrimaryButton(
                     label: 'Done',
-                    onPressed: () {
-                      Navigator.of(context).pushNamedAndRemoveUntil(
-                        '/home',
-                        (route) => false,
-                      );
-                    },
+                    onPressed: () => _handleDone(
+                      schedulesProvider,
+                      smellsProvider,
+                      context.read<BleProvider>(),
+                    ),
                   ),
                 ),
 

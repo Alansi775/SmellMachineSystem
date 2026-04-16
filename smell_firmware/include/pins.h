@@ -33,3 +33,8 @@ static constexpr uint8_t STATUS_LED_PIN = 48;  // GPIO 48 (varies by board)
 
 // Button for manual reset/wipe (optional)
 static constexpr uint8_t RESET_BUTTON_PIN = 0;  // GPIO 0 (boot button, optional)
+
+// I2C OLED display pins (SSD1306)
+// Update these if your display is wired to different GPIOs.
+static constexpr uint8_t DISPLAY_SDA_PIN = 8;
+static constexpr uint8_t DISPLAY_SCL_PIN = 9;

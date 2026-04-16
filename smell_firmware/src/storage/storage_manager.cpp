@@ -5,6 +5,7 @@
 #include "storage_manager.h"
 #include "config.h"
 #include <Preferences.h>
+#include <vector>
 
 static Preferences preferences;
 
@@ -12,6 +13,7 @@ void StorageManager::setup() {
   if (preferences.begin(NVS_NAMESPACE, false)) {
     Serial.print("[Storage] Initialized with namespace: ");
     Serial.println(NVS_NAMESPACE);
+    preferences.end();
   } else {
     Serial.println("[Storage] ERROR: Failed to initialize Preferences");
   }
@@ -23,7 +25,12 @@ bool StorageManager::saveConfig(const std::string& jsonConfig) {
     return false;
   }
 
-  size_t bytesWritten = preferences.putString(NVS_CONFIG_KEY, jsonConfig.c_str());
+  // Store as blob to avoid putString size limitations with larger JSON payloads.
+  size_t bytesWritten = preferences.putBytes(
+    NVS_CONFIG_KEY,
+    jsonConfig.c_str(),
+    jsonConfig.length() + 1
+  );
   preferences.end();
 
   if (bytesWritten > 0) {
@@ -42,10 +49,22 @@ std::string StorageManager::loadConfig() const {
     return "";
   }
 
-  String configStr = preferences.getString(NVS_CONFIG_KEY, "");
+  size_t bytesLen = preferences.getBytesLength(NVS_CONFIG_KEY);
+  if (bytesLen == 0) {
+    preferences.end();
+    return "";
+  }
+
+  std::vector<char> buffer(bytesLen, '\0');
+  size_t readLen = preferences.getBytes(NVS_CONFIG_KEY, buffer.data(), bytesLen);
   preferences.end();
 
-  return std::string(configStr.c_str());
+  if (readLen == 0) {
+    Serial.println("[Storage] ERROR: Failed to read config blob");
+    return "";
+  }
+
+  return std::string(buffer.data());
 }
 
 bool StorageManager::hasConfig() const {

@@ -88,54 +88,79 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                 // STEP label
                 const SizedBox(height: 16),
                 const SectionLabel(text: 'STEP 1 OF 3'),
-                const SizedBox(height: 48),
+                const SizedBox(height: 24),
 
-                // Pulsing Bluetooth icon container
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, _) {
-                    final pulse = _pulseController.value;
-                    final scale = 1.0 + (pulse < 0.5 ? pulse * 2 : (1 - pulse) * 2) * 0.08;
-                    return Transform.scale(
-                      scale: scale,
-                      child: Container(
-                        width: 160,
-                        height: 160,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF4F4F5),
-                          shape: BoxShape.circle,
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF111827), Color(0xFF374151)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (context, _) {
+                          final pulse = _pulseController.value;
+                          final scale = 1.0 + (pulse < 0.5 ? pulse * 2 : (1 - pulse) * 2) * 0.09;
+                          return Transform.scale(
+                            scale: scale,
+                            child: Container(
+                              width: 132,
+                              height: 132,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+                              ),
+                              child: const Icon(
+                                Icons.bluetooth_rounded,
+                                size: 72,
+                                color: Colors.white,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Looking for your device',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
                         ),
-                        child: const Icon(
-                          Icons.bluetooth,
-                          size: 80,
-                          color: Color(0xFF0A0A0A),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Power on Smell Device and keep it close',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          bleProvider.isScanning ? 'Scanning in progress...' : 'Tap Scan Again to refresh',
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 32),
-
-                // Heading
-                Text(
-                  'Looking for your device',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.02,
+                    ],
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-
-                // Subtitle
-                Text(
-                  'Make sure Smell Device is powered on',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 15,
-                    color: const Color(0xFF71717A),
-                  ),
-                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
 
@@ -183,7 +208,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                             isSelected: false,
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   )
                 else if (!bleProvider.isScanning)

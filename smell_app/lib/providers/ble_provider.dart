@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -41,6 +42,9 @@ class BleProvider extends ChangeNotifier {
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _configChar;
   BluetoothCharacteristic? _responseChar;
+  String? _lastDeviceMessage;
+  String? _lastNextSmellName;
+  bool _lastApplySuccess = false;
 
   bool get isConnected => _isConnected;
   String? get connectedDeviceId => _connectedDeviceId;
@@ -48,6 +52,9 @@ class BleProvider extends ChangeNotifier {
   List<BleScanResult> get devices => List.unmodifiable(_devices);
   bool get isScanning => _isScanning;
   bool get isBleSupported => !kIsWeb;
+  String? get lastDeviceMessage => _lastDeviceMessage;
+  String? get lastNextSmellName => _lastNextSmellName;
+  bool get lastApplySuccess => _lastApplySuccess;
 
   Future<bool> _ensureBlePermissions() async {
     if (kIsWeb) return false;
@@ -214,7 +221,9 @@ class BleProvider extends ChangeNotifier {
               // Listen for notifications
               await char.setNotifyValue(true);
               char.onValueReceived.listen((value) {
-                Logger.info('Received from ESP32: ${String.fromCharCodes(value)}');
+                final payload = String.fromCharCodes(value);
+                Logger.info('Received from ESP32: $payload');
+                _handleDeviceNotification(payload);
               });
             }
           }
@@ -246,6 +255,28 @@ class BleProvider extends ChangeNotifier {
       _isConnected = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  void _handleDeviceNotification(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map<String, dynamic>) {
+        return;
+      }
+
+      final type = decoded['type']?.toString() ?? '';
+      if (type == 'apply_result') {
+        _lastApplySuccess = decoded['success'] == true;
+        _lastDeviceMessage = decoded['message']?.toString();
+        _lastNextSmellName = decoded['nextSmellName']?.toString();
+        notifyListeners();
+      } else if (type == 'time_sync') {
+        _lastDeviceMessage = 'Time synchronized';
+        notifyListeners();
+      }
+    } catch (_) {
+      // Non-JSON payloads are allowed; ignore silently.
     }
   }
 
@@ -301,6 +332,9 @@ class BleProvider extends ChangeNotifier {
       _connectedDevice = null;
       _configChar = null;
       _responseChar = null;
+      _lastDeviceMessage = null;
+      _lastNextSmellName = null;
+      _lastApplySuccess = false;
       notifyListeners();
     } catch (e) {
       Logger.error('Disconnect error: $e');
