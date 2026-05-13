@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../core/constants/app_constants.dart';
 import '../data/models/device_config.dart';
+import '../core/utils/time_utils.dart';
 import '../../core/utils/logger.dart';
 
 class BleScanResult {
@@ -36,9 +38,9 @@ class BleProvider extends ChangeNotifier {
   DateTime? _lastScanRequestAt;
 
   // BLE channel UUIDs (from ESP32 config)
-  static const String serviceUuid = '12345678-1234-1234-1234-123456789abc';
-  static const String configCharUuid = 'bbcc0001-e56f-504d-a6c5-6c2342e5672a';
-  static const String responseCharUuid = 'bbcc0002-e56f-504d-a6c5-6c2342e5672a';
+  static const String serviceUuid = AppConstants.bleServiceUuid;
+  static const String configCharUuid = AppConstants.bleConfigCharacteristicUuid;
+  static const String responseCharUuid = AppConstants.bleResponseCharacteristicUuid;
 
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _configChar;
@@ -63,21 +65,33 @@ class BleProvider extends ChangeNotifier {
   Future<bool> _ensureBlePermissions() async {
     if (kIsWeb) return false;
 
-    final statuses = await <Permission>[
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.locationWhenInUse,
-    ].request();
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final statuses = await <Permission>[
+        Permission.bluetooth,
+      ].request();
 
-    final scanOk = statuses[Permission.bluetoothScan]?.isGranted ?? false;
-    final connectOk = statuses[Permission.bluetoothConnect]?.isGranted ?? false;
-    final locationOk = statuses[Permission.locationWhenInUse]?.isGranted ?? false;
+      final bluetoothOk = statuses[Permission.bluetooth]?.isGranted ?? false;
+      if (!bluetoothOk) {
+        Logger.warning('BLE permissions missing on iOS. bluetooth=$bluetoothOk');
+        return false;
+      }
+    } else {
+      final statuses = await <Permission>[
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.locationWhenInUse,
+      ].request();
 
-    if (!scanOk || !connectOk || !locationOk) {
-      Logger.warning(
-        'BLE permissions missing. scan=$scanOk connect=$connectOk location=$locationOk',
-      );
-      return false;
+      final scanOk = statuses[Permission.bluetoothScan]?.isGranted ?? false;
+      final connectOk = statuses[Permission.bluetoothConnect]?.isGranted ?? false;
+      final locationOk = statuses[Permission.locationWhenInUse]?.isGranted ?? false;
+
+      if (!scanOk || !connectOk || !locationOk) {
+        Logger.warning(
+          'BLE permissions missing. scan=$scanOk connect=$connectOk location=$locationOk',
+        );
+        return false;
+      }
     }
 
     return true;
@@ -361,9 +375,10 @@ class BleProvider extends ChangeNotifier {
         return false;
       }
 
-      Logger.info('Sending config to ESP32: $jsonConfig');
+      final payload = _attachCurrentMetadata(jsonConfig);
+      Logger.info('Sending config to ESP32: $payload');
 
-      final data = utf8.encode(jsonConfig);
+      final data = utf8.encode(payload);
       if (data.length <= 220) {
         await _configChar!.write(data, withoutResponse: false);
         Logger.info('Config sent successfully');
@@ -389,6 +404,25 @@ class BleProvider extends ChangeNotifier {
     } catch (e) {
       Logger.error('Send config error: $e');
       return false;
+    }
+  }
+
+  String _attachCurrentMetadata(String jsonConfig) {
+    try {
+      final decoded = jsonDecode(jsonConfig);
+      if (decoded is! Map<String, dynamic>) {
+        return jsonConfig;
+      }
+
+      if (!decoded.containsKey('smells') && !decoded.containsKey('schedules')) {
+        return jsonConfig;
+      }
+
+      final enriched = Map<String, dynamic>.from(decoded)
+        ..addAll(TimeUtils.buildCurrentMetadata());
+      return jsonEncode(enriched);
+    } catch (_) {
+      return jsonConfig;
     }
   }
 
