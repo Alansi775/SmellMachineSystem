@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/localization/locale_provider.dart';
 import '../../../providers/ble_provider.dart';
+import '../../widgets/primary_button.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,41 +26,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Row(
               children: [
                 Expanded(
-                  child: FilledButton(
+                  child: PrimaryButton(
                     onPressed: () => Navigator.of(context).pushNamed('/connection'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0A0A0A),
-                    ),
-                    child: const Text(
-                      'Adim 1: Baglan',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    label: 'Adim 1: Baglan',
+                    leadingIcon: const Icon(Icons.bluetooth_searching_rounded),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: FilledButton(
+                  child: PrimaryButton(
                     onPressed: () => Navigator.of(context).pushNamed('/smells'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0A0A0A),
-                    ),
-                    child: const Text(
-                      'Adim 2: Kokular',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    label: 'Adim 2: Kokular',
+                    leadingIcon: const Icon(Icons.local_florist_rounded),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: FilledButton(
+                  child: PrimaryButton(
                     onPressed: () => Navigator.of(context).pushNamed('/schedules'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0A0A0A),
-                    ),
-                    child: const Text(
-                      'Adim 3: Takvim',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    label: 'Adim 3: Takvim',
+                    leadingIcon: const Icon(Icons.event_note_rounded),
                   ),
                 ),
               ],

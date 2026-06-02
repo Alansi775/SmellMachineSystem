@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 class ResponsiveScaffold extends StatelessWidget {
@@ -8,18 +10,21 @@ class ResponsiveScaffold extends StatelessWidget {
   final bool showSettingsAction;
 
   const ResponsiveScaffold({
+    super.key,
     required this.title,
     required this.body,
     this.backgroundColor,
     this.centerTitle = true,
     this.showSettingsAction = true,
-    Key? key,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: backgroundColor ?? const Color(0xFFFAFAFA),
+      backgroundColor: backgroundColor ?? theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           title,
@@ -33,11 +38,31 @@ class ResponsiveScaffold extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              decoration: BoxDecoration(
+                color: (isDark ? const Color(0xFF111827) : Colors.white).withValues(
+                  alpha: isDark ? 0.72 : 0.62,
+                ),
+                border: Border(
+                  bottom: BorderSide(
+                    color: (isDark
+                            ? const Color(0xFF374151)
+                            : const Color(0xFFE5E7EB))
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
         actions: showSettingsAction
             ? [
                 IconButton(
                   tooltip: 'Kontrol Merkezi',
-                  icon: const Icon(Icons.tune_rounded),
+                  icon: const Icon(Icons.settings_rounded),
                   onPressed: () => Navigator.of(context).pushNamed('/settings'),
                 ),
               ]

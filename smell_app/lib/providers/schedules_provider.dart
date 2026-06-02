@@ -22,6 +22,8 @@ class SchedulesProvider extends ChangeNotifier {
     required int dayOfWeek,
     required String startTime,
     required String endTime,
+    required int pumpStartSeconds,
+    required int pumpWaitSeconds,
     BleProvider? bleProvider,
   }) async {
     try {
@@ -42,6 +44,8 @@ class SchedulesProvider extends ChangeNotifier {
         dayOfWeek: dayOfWeek,
         startTime: startTime,
         endTime: endTime,
+        pumpStartSeconds: pumpStartSeconds,
+        pumpWaitSeconds: pumpWaitSeconds,
       );
 
       _schedules.add(newSchedule);
@@ -59,6 +63,8 @@ class SchedulesProvider extends ChangeNotifier {
     int? dayOfWeek,
     String? startTime,
     String? endTime,
+    int? pumpStartSeconds,
+    int? pumpWaitSeconds,
     BleProvider? bleProvider,
   }) async {
     try {
@@ -71,6 +77,8 @@ class SchedulesProvider extends ChangeNotifier {
           dayOfWeek: dayOfWeek ?? current.dayOfWeek,
           startTime: startTime ?? current.startTime,
           endTime: endTime ?? current.endTime,
+          pumpStartSeconds: pumpStartSeconds ?? current.pumpStartSeconds,
+          pumpWaitSeconds: pumpWaitSeconds ?? current.pumpWaitSeconds,
         );
         Logger.info('Updated schedule: $id');
         notifyListeners();

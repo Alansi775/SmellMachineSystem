@@ -98,10 +98,14 @@ class _SmellsScreenState extends State<SmellsScreen> {
       duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFF0A0A0A) : Colors.white,
+        color: selected
+            ? Colors.white.withValues(alpha: 0.16)
+            : Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: selected ? const Color(0xFF0A0A0A) : const Color(0xFFE5E7EB),
+          color: selected
+              ? Colors.white.withValues(alpha: 0.28)
+              : const Color(0xFFE5E7EB),
         ),
       ),
       child: Text(
@@ -120,6 +124,14 @@ class _SmellsScreenState extends State<SmellsScreen> {
       title: 'Kokular',
       body: Consumer2<SmellsProvider, SchedulesProvider>(
         builder: (context, smellsProvider, schedulesProvider, _) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          final cardSurface = theme.cardColor;
+          final borderColor = theme.colorScheme.outlineVariant;
+          final primaryText = theme.colorScheme.onSurface;
+          final secondaryText = theme.textTheme.bodyMedium?.color ??
+              (isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280));
+          final mutedSurface = isDark ? const Color(0xFF27272A) : const Color(0xFFF4F4F5);
           final bleProvider = context.watch<BleProvider>();
           final isEditing = _editingSmellId != null;
 
@@ -192,9 +204,9 @@ class _SmellsScreenState extends State<SmellsScreen> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: _smellNameController,
-                          cursorColor: const Color(0xFF0A0A0A),
-                          style: const TextStyle(
-                            color: Color(0xFF0A0A0A),
+                          cursorColor: theme.colorScheme.primary,
+                          style: TextStyle(
+                            color: primaryText,
                             fontWeight: FontWeight.w500,
                           ),
                           decoration: InputDecoration(
@@ -207,15 +219,15 @@ class _SmellsScreenState extends State<SmellsScreen> {
                               color: Color(0xFFD1D5DB),
                             ),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: cardSurface,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                              borderSide: BorderSide(
+                                color: borderColor,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
@@ -269,9 +281,9 @@ class _SmellsScreenState extends State<SmellsScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 42, horizontal: 24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardSurface,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                      border: Border.all(color: borderColor),
                     ),
                     child: Column(
                       children: [
@@ -285,14 +297,14 @@ class _SmellsScreenState extends State<SmellsScreen> {
                           'Bu cihazda henuz koku yok',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF0A0A0A),
+                            color: primaryText,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Ilk kokuyu yukaridan ekleyin. Yerel kaydedilir ve BLE baglaninca ESP32 ye gonderilir.',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF6B7280),
+                            color: secondaryText,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -313,14 +325,20 @@ class _SmellsScreenState extends State<SmellsScreen> {
                           duration: const Duration(milliseconds: 180),
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: selected ? const Color(0xFF111827) : Colors.white,
+                            color: selected
+                                ? (isDark ? const Color(0xFF374151) : const Color(0xFF111827))
+                                : cardSurface,
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: selected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
+                              color: selected
+                                  ? (isDark ? const Color(0xFF4B5563) : const Color(0xFF111827))
+                                  : borderColor,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
+                                color: isDark
+                                    ? Colors.black.withValues(alpha: 0.22)
+                                    : Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
@@ -334,14 +352,14 @@ class _SmellsScreenState extends State<SmellsScreen> {
                                 decoration: BoxDecoration(
                                   color: selected
                                       ? Colors.white.withValues(alpha: 0.12)
-                                      : const Color(0xFFF4F4F5),
+                                      : mutedSurface,
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.auto_awesome_rounded,
                                   color: selected
                                       ? Colors.white
-                                      : const Color(0xFF0A0A0A),
+                                      : primaryText,
                                 ),
                               ),
                               const SizedBox(width: 14),
@@ -352,7 +370,7 @@ class _SmellsScreenState extends State<SmellsScreen> {
                                     Text(
                                       smell.name,
                                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        color: selected ? Colors.white : const Color(0xFF0A0A0A),
+                                        color: selected ? Colors.white : primaryText,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -362,7 +380,7 @@ class _SmellsScreenState extends State<SmellsScreen> {
                                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: selected
                                             ? Colors.white.withValues(alpha: 0.7)
-                                            : const Color(0xFF6B7280),
+                                            : secondaryText,
                                       ),
                                     ),
                                   ],

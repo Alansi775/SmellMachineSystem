@@ -64,7 +64,9 @@ class _PrimaryButtonState extends State<PrimaryButton>
   @override
   Widget build(BuildContext context) {
     final isDisabled = !widget.isEnabled || widget.isLoading;
-    final bgColor = isDisabled ? const Color(0xFFE4E4E7) : const Color(0xFF0A0A0A);
+    const gradientStart = Color(0xFF059669);
+    const gradientEnd = Color(0xFF10B981);
+    final bgColor = isDisabled ? const Color(0xFFE4E4E7) : gradientEnd;
     final textColor = isDisabled ? const Color(0xFFA1A1AA) : Colors.white;
 
     return ScaleTransition(
@@ -76,14 +78,21 @@ class _PrimaryButtonState extends State<PrimaryButton>
         child: Container(
           height: 56.0,
           decoration: BoxDecoration(
-            color: bgColor,
+            color: isDisabled ? bgColor : null,
+            gradient: isDisabled
+                ? null
+                : const LinearGradient(
+                    colors: [gradientStart, gradientEnd],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
             borderRadius: BorderRadius.circular(14.0),
             boxShadow: [
               if (!isDisabled)
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: gradientEnd.withValues(alpha: 0.26),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
                 ),
             ],
           ),

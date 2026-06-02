@@ -210,7 +210,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                 // Loader or device list
                 if (bleProvider.isScanning && bleProvider.devices.isEmpty)
                   const CustomLoader(
-                    color: Color(0xFF0A0A0A),
+                    color: Color(0xFF10B981),
                     dotSize: 8.0,
                     gap: 6.0,
                   )
@@ -251,7 +251,7 @@ class _ConnectionScreenState extends State<ConnectionScreen>
                   width: double.infinity,
                   child: PrimaryButton(
                     label: 'Tekrar Tara',
-                    leadingIcon: const Icon(Icons.refresh),
+                    leadingIcon: const Icon(Icons.refresh_rounded),
                     isLoading: bleProvider.isScanning,
                     isEnabled: !_isConnecting && bleProvider.isBleSupported,
                     onPressed: () {

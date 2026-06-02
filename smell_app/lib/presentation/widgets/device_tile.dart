@@ -57,6 +57,16 @@ class _DeviceTileState extends State<DeviceTile>
   @override
   Widget build(BuildContext context) {
     final isDisabled = widget.onTap == null;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final selectedCardColor = isDark ? const Color(0xFF374151) : const Color(0xFF111827);
+    final selectedBorderColor = isDark ? const Color(0xFF4B5563) : const Color(0xFF111827);
+    final unselectedCardColor = theme.cardColor;
+    final unselectedBorderColor = theme.colorScheme.outlineVariant;
+    final selectedTextColor = Colors.white;
+    final unselectedTextColor = theme.colorScheme.onSurface;
+    final selectedIconColor = Colors.white70;
+    final unselectedIconColor = theme.colorScheme.outline;
 
     return ScaleTransition(
       scale: _scaleAnimation,
@@ -69,19 +79,23 @@ class _DeviceTileState extends State<DeviceTile>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
             decoration: BoxDecoration(
-              color: widget.isSelected ? const Color(0xFF111827) : Colors.white,
+              color: widget.isSelected ? selectedCardColor : unselectedCardColor,
               borderRadius: BorderRadius.circular(20.0),
               border: Border.all(
-                color: widget.isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
+                color: widget.isSelected ? selectedBorderColor : unselectedBorderColor,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.22)
+                      : Colors.black.withValues(alpha: 0.04),
                   blurRadius: 1,
                   offset: const Offset(0, 1),
                 ),
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.35)
+                      : Colors.black.withValues(alpha: 0.06),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -96,7 +110,7 @@ class _DeviceTileState extends State<DeviceTile>
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w500,
                       fontSize: 15.0,
-                      color: widget.isSelected ? Colors.white : const Color(0xFF0A0A0A),
+                      color: widget.isSelected ? selectedTextColor : unselectedTextColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -105,7 +119,7 @@ class _DeviceTileState extends State<DeviceTile>
                 const SizedBox(width: 12.0),
                 Icon(
                   Icons.chevron_right,
-                  color: widget.isSelected ? Colors.white70 : const Color(0xFFA1A1AA),
+                  color: widget.isSelected ? selectedIconColor : unselectedIconColor,
                   size: 20.0,
                 ),
               ],

@@ -1,12 +1,13 @@
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/logger.dart';
 import '../../../data/models/device_config.dart';
 import '../../../data/models/schedule.dart';
-import '../../../data/models/smell.dart';
 import '../../../providers/ble_provider.dart';
 import '../../../providers/schedules_provider.dart';
 import '../../../providers/smells_provider.dart';
@@ -22,12 +23,19 @@ class SchedulesScreen extends StatefulWidget {
 }
 
 class _SchedulesScreenState extends State<SchedulesScreen> {
+  static const int _minPumpStartSeconds = Schedule.minPumpStartSeconds;
+  static const int _maxPumpStartSeconds = Schedule.maxPumpStartSeconds;
+  static const int _minPumpWaitSeconds = Schedule.minPumpWaitSeconds;
+  static const int _maxPumpWaitSeconds = Schedule.maxPumpWaitSeconds;
+
   final _formKey = GlobalKey<FormState>();
   String? _selectedSmellId;
   String? _editingScheduleId;
   final Set<int> _selectedDays = {0};
   final _startTimeController = TextEditingController(text: '08:00');
   final _endTimeController = TextEditingController(text: '18:00');
+  int _pumpStartSeconds = 20;
+  int _pumpWaitSeconds = 30;
 
   static const List<String> _dayNames = [
     'Pazartesi',
@@ -59,6 +67,8 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
         ..add(0);
       _startTimeController.text = '08:00';
       _endTimeController.text = '18:00';
+      _pumpStartSeconds = 20;
+      _pumpWaitSeconds = 30;
     });
   }
 
@@ -71,6 +81,8 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
         ..add(schedule.dayOfWeek);
       _startTimeController.text = schedule.startTime;
       _endTimeController.text = schedule.endTime;
+      _pumpStartSeconds = schedule.pumpStartSeconds;
+      _pumpWaitSeconds = schedule.pumpWaitSeconds;
     });
   }
 
@@ -320,6 +332,8 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
             dayOfWeek: day,
             startTime: _startTimeController.text.trim(),
             endTime: _endTimeController.text.trim(),
+            pumpStartSeconds: _pumpStartSeconds,
+            pumpWaitSeconds: _pumpWaitSeconds,
             bleProvider: bleProvider,
           );
           addedCount++;
@@ -346,6 +360,8 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
         dayOfWeek: _selectedDays.first,
         startTime: _startTimeController.text.trim(),
         endTime: _endTimeController.text.trim(),
+        pumpStartSeconds: _pumpStartSeconds,
+        pumpWaitSeconds: _pumpWaitSeconds,
         bleProvider: bleProvider,
       );
     }
@@ -373,20 +389,107 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     required bool selected,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
       selectedColor: const Color(0xFF10B981),
-      backgroundColor: Colors.white,
+      backgroundColor: theme.cardColor,
       labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
         color: selected ? Colors.white : const Color(0xFF0A0A0A),
         fontWeight: FontWeight.w600,
       ),
       shape: StadiumBorder(
         side: BorderSide(
-          color: selected ? const Color(0xFF10B981) : const Color(0xFFE5E7EB),
+          color: selected
+              ? const Color(0xFF10B981)
+              : (isDark ? const Color(0xFF3F3F46) : const Color(0xFFE5E7EB)),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSecondsWheel({
+    required String title,
+    required String subtitle,
+    required int min,
+    required int max,
+    required int selectedValue,
+    required ValueChanged<int> onChanged,
+  }) {
+    const step = 5;
+    final values = <int>[];
+    for (int value = min; value <= max; value += step) {
+      values.add(value);
+    }
+    final clamped = selectedValue.clamp(min, max).toInt();
+    final nearest = ((clamped - min) / step).round();
+    final initialItem = nearest.clamp(0, values.length - 1);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF6B7280),
+                ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 130,
+            child: CupertinoPicker(
+              itemExtent: 34,
+              scrollController: FixedExtentScrollController(initialItem: initialItem),
+              selectionOverlay: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.symmetric(
+                    horizontal: BorderSide(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                      width: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+              onSelectedItemChanged: (index) {
+                HapticFeedback.selectionClick();
+                onChanged(values[index]);
+              },
+              children: List.generate(
+                values.length,
+                (index) {
+                  final seconds = values[index];
+                  return Center(
+                    child: Text(
+                      '$seconds sn',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF0A0A0A),
+                          ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -433,6 +536,13 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       title: 'Takvimler',
       body: Consumer2<SchedulesProvider, SmellsProvider>(
         builder: (context, schedulesProvider, smellsProvider, _) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          final cardSurface = theme.cardColor;
+          final borderColor = theme.colorScheme.outlineVariant;
+          final primaryText = theme.colorScheme.onSurface;
+          final secondaryText = theme.textTheme.bodyMedium?.color ??
+              (isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280));
           final bleProvider = context.watch<BleProvider>();
 
           final smellMap = {
@@ -503,18 +613,18 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                               selected: _selectedSmellId == null || _selectedSmellId == smell.id,
                               onSelected: (_) => _selectSmell(smell.id),
                               selectedColor: const Color(0xFF10B981),
-                              backgroundColor: Colors.white,
+                              backgroundColor: cardSurface,
                               labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
                                 color: (_selectedSmellId == null || _selectedSmellId == smell.id)
                                     ? Colors.white
-                                    : const Color(0xFF0A0A0A),
+                                    : primaryText,
                                 fontWeight: FontWeight.w600,
                               ),
                               shape: StadiumBorder(
                                 side: BorderSide(
                                   color: (_selectedSmellId == null || _selectedSmellId == smell.id)
                                       ? const Color(0xFF10B981)
-                                      : const Color(0xFFE5E7EB),
+                                      : borderColor,
                                 ),
                               ),
                             ),
@@ -592,6 +702,41 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                           ),
                           const SizedBox(height: 16),
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildSecondsWheel(
+                                  title: 'Pump Start',
+                                  subtitle: 'Calisma suresi (5-240 sn)',
+                                  min: _minPumpStartSeconds,
+                                  max: _maxPumpStartSeconds,
+                                  selectedValue: _pumpStartSeconds,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _pumpStartSeconds = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildSecondsWheel(
+                                  title: 'Pump Wait',
+                                  subtitle: 'Bekleme suresi (10-360 sn)',
+                                  min: _minPumpWaitSeconds,
+                                  max: _maxPumpWaitSeconds,
+                                  selectedValue: _pumpWaitSeconds,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _pumpWaitSeconds = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
                             children: [
                               Expanded(
                                 child: TextFormField(
@@ -611,27 +756,27 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                                       color: Color(0xFFD1D5DB),
                                     ),
                                     filled: true,
-                                    fillColor: Colors.white,
+                                    fillColor: cardSurface,
                                     contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 14,
                                       vertical: 12,
                                     ),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFE5E7EB),
+                                      borderSide: BorderSide(
+                                        color: borderColor,
                                       ),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFE5E7EB),
+                                      borderSide: BorderSide(
+                                        color: borderColor,
                                       ),
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFF0A0A0A),
+                                      borderSide: BorderSide(
+                                        color: theme.colorScheme.primary,
                                         width: 2,
                                       ),
                                     ),
@@ -663,27 +808,27 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                                       color: Color(0xFFD1D5DB),
                                     ),
                                     filled: true,
-                                    fillColor: Colors.white,
+                                    fillColor: cardSurface,
                                     contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 14,
                                       vertical: 12,
                                     ),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFE5E7EB),
+                                      borderSide: BorderSide(
+                                        color: borderColor,
                                       ),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFE5E7EB),
+                                      borderSide: BorderSide(
+                                        color: borderColor,
                                       ),
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(16),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFF0A0A0A),
+                                      borderSide: BorderSide(
+                                        color: theme.colorScheme.primary,
                                         width: 2,
                                       ),
                                     ),
@@ -699,34 +844,37 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: PrimaryButton(
-                                  label: _editingScheduleId == null ? 'Takvim Ekle' : 'Takvimi Guncelle',
-                                  leadingIcon: Icon(
-                                    _editingScheduleId == null ? Icons.add : Icons.save_outlined,
-                                  ),
-                                  isEnabled: selectedSmell != null,
-                                  onPressed: () => _submitSchedule(
-                                    schedulesProvider,
-                                    smellsProvider,
-                                  ),
-                                ),
-                              ),
-                              if (_editingScheduleId != null) ...[
-                                const SizedBox(width: 12),
-                                TextButton(
-                                  onPressed: _resetForm,
-                                  child: const Text('Iptal'),
-                                ),
-                              ],
-                            ],
-                          ),
                         ],
                       ),
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: PrimaryButton(
+                        label: _editingScheduleId == null ? 'Takvim Ekle' : 'Takvimi Guncelle',
+                        leadingIcon: Icon(
+                          _editingScheduleId == null ? Icons.add : Icons.save_outlined,
+                        ),
+                        isEnabled: selectedSmell != null,
+                        onPressed: () => _submitSchedule(
+                          schedulesProvider,
+                          smellsProvider,
+                        ),
+                      ),
+                    ),
+                    if (_editingScheduleId != null) ...[
+                      const SizedBox(width: 12),
+                      TextButton(
+                        onPressed: _resetForm,
+                        child: const Text('Iptal'),
+                      ),
+                    ],
+                  ],
                 ),
 
                 const SizedBox(height: 20),
@@ -736,16 +884,16 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardSurface,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                      border: Border.all(color: borderColor),
                     ),
                     child: Column(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.local_florist_rounded,
                           size: 64,
-                          color: Color(0xFF0A0A0A),
+                          color: primaryText,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -758,7 +906,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                         Text(
                           'Takvimler kokulara baglidir. Once Kokular ekranindan bir koku olusturun.',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: const Color(0xFF6B7280),
+                                color: secondaryText,
                               ),
                           textAlign: TextAlign.center,
                         ),
@@ -773,16 +921,16 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: cardSurface,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                        border: Border.all(color: borderColor),
                       ),
                       child: Text(
                         _selectedSmellId == null
                             ? 'Henuz takvim yok. Yukaridan koku secin veya yeni koku ekleyin.'
                             : '${selectedSmell?.name ?? 'bu koku'} icin henuz takvim yok.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: const Color(0xFF6B7280),
+                              color: secondaryText,
                             ),
                         textAlign: TextAlign.center,
                       ),
@@ -799,9 +947,9 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cardSurface,
                               borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                              border: Border.all(color: borderColor),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.05),
@@ -833,14 +981,22 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                                         smell?.name ?? 'Bilinmeyen koku',
                                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                               fontWeight: FontWeight.w700,
-                                              color: const Color(0xFF0A0A0A),
+                                                color: primaryText,
                                             ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         '${_formatDay(schedule.dayOfWeek)} • ${schedule.startTime} - ${schedule.endTime}',
                                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                              color: const Color(0xFF6B7280),
+                                                    color: secondaryText,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Pump Start: ${schedule.pumpStartSeconds} sn • Pump Wait: ${schedule.pumpWaitSeconds} sn',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                    color: secondaryText,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                       ),
                                     ],
